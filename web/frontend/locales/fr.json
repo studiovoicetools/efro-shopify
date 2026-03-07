@@ -1,0 +1,41 @@
+{
+  "HomePage": {
+    "heading": "Bravo pour l'application Shopify que vous avez créée 🎉",
+    "learnMore": "Découvrez comment concevoir votre application dans <ShopifyTutorialLink>ce tutoriel Shopify</ShopifyTutorialLink> 📚",
+    "startPopulatingYourApp": "Vous souhaitez vous lancer ? Commencez à remplir votre application d'exemples de produits à afficher et tester dans votre boutique.",
+    "title": "Nom de l'application",
+    "trophyAltText": "Bravo pour l'application Shopify que vous avez créée",
+    "yourAppIsReadyToExplore": "Votre application est prête à être explorée ! Elle contient tout ce dont vous avez besoin pour vous lancer, y compris le <PolarisLink>système de design Polaris</PolarisLink>, la <AdminApiLink>Shopify Admin API</AdminApiLink> ainsi que la bibliothèque et les composants d'IU <AppBridgeLink>App Bridge</AppBridgeLink>."
+  },
+  "NavigationMenu": {
+    "onboarding": "Onboarding",
+    "events": "Journaux d'événements"
+  },
+  "NotFound": {
+    "description": "Vérifiez l'URL et réessayez, ou utilisez la barre de recherche pour trouver ce qu'il vous faut.",
+    "heading": "Il n'y a aucune page à cette adresse"
+  },
+  "PageName": {
+    "body": "Corps",
+    "heading": "En-tête",
+    "primaryAction": "Action principale",
+    "secondaryAction": "Action secondaire",
+    "title": "Nom de la page"
+  },
+  "ProductsCard": {
+    "description": "Les exemples de produits sont créés avec un titre et un prix par défaut. Vous pouvez les supprimer à tout moment.",
+    "errorCreatingProductsToast": "Une erreur est survenue lors de la création des produits",
+    "populateProductsButton": {
+      "one": "Remplir {{count}} produit",
+      "other": "Remplir {{count}} produits",
+      "many": "Remplir {{count}} produits"
+    },
+    "productsCreatedToast": {
+      "one": "{{count}} produit créé !",
+      "other": "{{count}} produits créés !",
+      "many": "{{count}} produits créés !"
+    },
+    "title": "Compteur de produits",
+    "totalProductsHeading": "TOTAL DES PRODUITS"
+  }
+}

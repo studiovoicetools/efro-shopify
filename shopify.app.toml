@@ -1,0 +1,28 @@
+# Configuration file for a Shopify app
+name = "EFRO KI Verkaufsassistent"
+client_id = "ae75c7d683dc9e2de855d104206ae8cc"
+application_url = "https://app.avatarsalespro.com"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+dev_store_url = "avatarsalespro-dev.myshopify.com"
+
+[access_scopes]
+scopes = "read_products,read_product_listings,read_customers,read_orders"
+
+[auth]
+redirect_urls = [
+  "https://app.avatarsalespro.com/auth/callback"
+]
+
+[webhooks]
+api_version = "2026-01"
+
+[webhooks.privacy_compliance]
+customer_data_request_url = "https://efro-five.vercel.app/api/gdpr/customers-data-request"
+customer_deletion_url = "https://efro-five.vercel.app/api/gdpr/customers-redact"
+shop_deletion_url = "https://efro-five.vercel.app/api/gdpr/shop-redact"
+
+[pos]
+embedded = false
