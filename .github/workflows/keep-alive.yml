@@ -1,0 +1,30 @@
+name: Keep Alive (Render)
+
+on:
+  schedule:
+    # Every 14 minutes — prevents Render free tier from sleeping (15 min timeout)
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Ping Render health endpoint
+        run: |
+          echo "Pinging Render at $(date -u)"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://app.avatarsalespro.com/health)
+          echo "Status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "⚠️ Health check returned $HTTP_STATUS — Render may be cold starting"
+            # Retry after 30 seconds (cold start)
+            sleep 30
+            HTTP_STATUS2=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://app.avatarsalespro.com/health)
+            echo "Retry Status: $HTTP_STATUS2"
+            if [ "$HTTP_STATUS2" != "200" ]; then
+              echo "❌ Render still not responding after retry"
+              exit 1
+            fi
+          fi
+          echo "✅ Render is alive"
