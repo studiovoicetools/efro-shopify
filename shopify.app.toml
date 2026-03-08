@@ -20,9 +20,9 @@ redirect_urls = [
 api_version = "2026-01"
 
 [webhooks.privacy_compliance]
-customer_data_request_url = "https://efro-five.vercel.app/api/gdpr/customers-data-request"
-customer_deletion_url = "https://efro-five.vercel.app/api/gdpr/customers-redact"
-shop_deletion_url = "https://efro-five.vercel.app/api/gdpr/shop-redact"
+customer_data_request_url = "https://efro-brain.vercel.app/api/gdpr/customers-data-request"
+customer_deletion_url = "https://efro-brain.vercel.app/api/gdpr/customers-redact"
+shop_deletion_url = "https://efro-brain.vercel.app/api/gdpr/shop-redact"
 
 [pos]
 embedded = false
