@@ -20,7 +20,11 @@ const app = express();
 const PORT                  = process.env.PORT || 8081;
 const SHOPIFY_API_KEY       = process.env.SHOPIFY_API_KEY;
 const SHOPIFY_API_SECRET    = process.env.SHOPIFY_API_SECRET;
-const SHOPIFY_SCOPES        = process.env.SHOPIFY_APP_SCOPES || 'read_products,write_products';
+const SHOPIFY_SCOPES = (process.env.SHOPIFY_APP_SCOPES || 'read_products,write_products')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean)
+  .join(',');
 const APP_URL               = process.env.SHOPIFY_APP_URL;
 const REDIRECT_URI          = `${APP_URL}/auth/callback`;
 const BRAIN_API_URL         = process.env.BRAIN_API_URL || 'https://efro-brain.vercel.app';
