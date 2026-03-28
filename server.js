@@ -17,18 +17,18 @@ const app = express();
 // ============================================================
 // CONFIG
 // ============================================================
-const PORT                  = process.env.PORT || 8081;
-const SHOPIFY_API_KEY       = process.env.SHOPIFY_API_KEY;
-const SHOPIFY_API_SECRET    = process.env.SHOPIFY_API_SECRET;
+const PORT               = process.env.PORT || 8081;
+const SHOPIFY_API_KEY    = process.env.SHOPIFY_API_KEY;
+const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
 const SHOPIFY_SCOPES = (process.env.SHOPIFY_APP_SCOPES || 'read_products,write_products')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean)
   .join(',');
-const APP_URL               = process.env.SHOPIFY_APP_URL;
-const REDIRECT_URI          = `${APP_URL}/auth/callback`;
-const BRAIN_API_URL         = process.env.BRAIN_API_URL || 'https://efro-brain.vercel.app';
-const WIDGET_URL            = process.env.WIDGET_URL || 'https://widget.avatarsalespro.com';
+const APP_URL            = process.env.SHOPIFY_APP_URL;
+const REDIRECT_URI       = `${APP_URL}/auth/callback`;
+const BRAIN_API_URL      = process.env.BRAIN_API_URL || 'https://efro-brain.vercel.app';
+const WIDGET_URL         = process.env.WIDGET_URL || 'https://widget.avatarsalespro.com';
 
 // ============================================================
 // SUPABASE
@@ -41,8 +41,6 @@ const supabase = createClient(
 // ============================================================
 // MIDDLEWARE
 // ============================================================
-
-// RAW body für Webhooks (muss VOR express.json sein)
 app.use('/webhooks', express.raw({ type: 'application/json' }));
 app.use(express.json());
 
@@ -50,16 +48,114 @@ app.use(express.json());
 // HELPERS
 // ============================================================
 
+function isMissingTableError(error) {
+  const msg = String(error?.message || '');
+  return (
+    msg.includes("Could not find the table") ||
+    msg.includes("relation") && msg.includes("does not exist")
+  );
+}
+
+async function getShopRecord(shopDomain) {
+  const shopDomainStr = String(shopDomain || '').trim();
+  if (!shopDomainStr) return null;
+
+  const tables = ['shops', 'efro_shops'];
+
+  for (const table of tables) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .eq('shop_domain', shopDomainStr)
+      .maybeSingle();
+
+    if (error) {
+      if (isMissingTableError(error)) {
+        console.warn(`⚠️ Tabelle ${table} fehlt, probiere nächste Option`);
+        continue;
+      }
+      throw error;
+    }
+
+    if (data) {
+      return { table, data };
+    }
+  }
+
+  return null;
+}
+
+async function getShopToken(shopDomain) {
+  const record = await getShopRecord(shopDomain);
+  return record?.data?.access_token || null;
+}
+
+async function saveShop(shopDomain, accessToken, shopData) {
+  const shopDomainStr = String(shopDomain || '').trim();
+  const nowIso = new Date().toISOString();
+
+  const shopsPayload = {
+    shop_domain:  shopDomainStr,
+    access_token: accessToken,
+    language:     shopData.primary_locale || 'de',
+    shop_name:    shopData.name || shopDomainStr,
+    email:        shopData.email || null,
+    currency:     shopData.currency || 'EUR',
+    timezone:     shopData.timezone || 'Europe/Berlin',
+    is_active:    true,
+    updated_at:   nowIso
+  };
+
+  const { error: shopsError } = await supabase
+    .from('shops')
+    .upsert(shopsPayload, { onConflict: 'shop_domain' });
+
+  if (!shopsError) {
+    return 'shops';
+  }
+
+  if (!isMissingTableError(shopsError)) {
+    throw shopsError;
+  }
+
+  console.warn('⚠️ public.shops fehlt, speichere in efro_shops');
+
+  const efroPayload = {
+    shop_domain:   shopDomainStr,
+    access_token:  accessToken,
+    language:      shopData.primary_locale || 'de',
+    currency:      shopData.currency || 'EUR',
+    locale:        shopData.primary_locale || 'de',
+    installed_at:  nowIso,
+    last_seen_at:  nowIso,
+    updated_at:    nowIso,
+    metadata: {
+      shop_name: shopData.name || shopDomainStr,
+      email: shopData.email || null,
+      timezone: shopData.timezone || 'Europe/Berlin'
+    }
+  };
+
+  const { error: efroError } = await supabase
+    .from('efro_shops')
+    .upsert(efroPayload, { onConflict: 'shop_domain' });
+
+  if (efroError) throw efroError;
+  return 'efro_shops';
+}
+
 function validateHmac(params, receivedHmac) {
   const { hmac, signature, ...rest } = params;
   const message = Object.keys(rest)
     .sort()
     .map(k => `${k}=${rest[k]}`)
     .join('&');
+
   const calculated = crypto
     .createHmac('sha256', SHOPIFY_API_SECRET)
     .update(message)
     .digest('hex');
+
   return crypto.timingSafeEqual(
     Buffer.from(calculated, 'hex'),
     Buffer.from(receivedHmac, 'hex')
@@ -73,32 +169,6 @@ function validateWebhookHmac(rawBody, receivedHmac) {
     .update(rawBody)
     .digest('base64');
   return calculated === receivedHmac;
-}
-
-async function getShopToken(shopDomain) {
-  const { data } = await supabase
-    .from('shops')
-    .select('access_token')
-    .eq('shop_domain', shopDomain)
-    .single();
-  return data?.access_token;
-}
-
-async function saveShop(shopDomain, accessToken, shopData) {
-  const { error } = await supabase
-    .from('shops')
-    .upsert({
-      shop_domain:   shopDomain,
-      access_token:  accessToken,
-      language:      shopData.primary_locale || 'de',
-      shop_name:     shopData.name || shopDomain,
-      email:         shopData.email || null,
-      currency:      shopData.currency || 'EUR',
-      timezone:      shopData.timezone || 'Europe/Berlin',
-      is_active:     true,
-      updated_at:    new Date().toISOString()
-    }, { onConflict: 'shop_domain' });
-  if (error) throw error;
 }
 
 async function syncProducts(shopDomain, accessToken) {
@@ -132,14 +202,10 @@ async function syncProducts(shopDomain, accessToken) {
 }
 
 function verifySessionToken(token) {
-  if (!token || typeof token !== 'string') {
-    throw new Error('Missing token');
-  }
+  if (!token || typeof token !== 'string') throw new Error('Missing token');
 
   const parts = token.split('.');
-  if (parts.length !== 3) {
-    throw new Error('Malformed token');
-  }
+  if (parts.length !== 3) throw new Error('Malformed token');
 
   const [encodedHeader, encodedPayload, encodedSignature] = parts;
   const signedPart = `${encodedHeader}.${encodedPayload}`;
@@ -161,18 +227,10 @@ function verifySessionToken(token) {
   const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
   const now = Math.floor(Date.now() / 1000);
 
-  if (!payload.aud || payload.aud !== SHOPIFY_API_KEY) {
-    throw new Error('Invalid token audience');
-  }
-  if (payload.nbf && payload.nbf > now) {
-    throw new Error('Token not active yet');
-  }
-  if (payload.exp && payload.exp <= now) {
-    throw new Error('Token expired');
-  }
-  if (!payload.dest || !String(payload.dest).startsWith('https://')) {
-    throw new Error('Invalid token destination');
-  }
+  if (!payload.aud || payload.aud !== SHOPIFY_API_KEY) throw new Error('Invalid token audience');
+  if (payload.nbf && payload.nbf > now) throw new Error('Token not active yet');
+  if (payload.exp && payload.exp <= now) throw new Error('Token expired');
+  if (!payload.dest || !String(payload.dest).startsWith('https://')) throw new Error('Invalid token destination');
 
   return payload;
 }
@@ -215,14 +273,8 @@ function embeddedAppPage(shop, host = '') {
       background: #ffffff;
       border-bottom: 1px solid #e5e7eb;
     }
-    .title {
-      font-size: 16px;
-      font-weight: 700;
-    }
-    .meta {
-      font-size: 12px;
-      color: #4b5563;
-    }
+    .title { font-size: 16px; font-weight: 700; }
+    .meta { font-size: 12px; color: #4b5563; }
     .status {
       font-size: 12px;
       color: #0369a1;
@@ -309,7 +361,7 @@ function embeddedAppPage(shop, host = '') {
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
-    version: 'efro-shopify-v6-embedded-root',
+    version: 'efro-shopify-v7-efro-shops-fallback',
     timestamp: new Date().toISOString()
   });
 });
@@ -368,8 +420,6 @@ app.get('/api/session-token-check', (req, res) => {
 // ============================================================
 // OAUTH ROUTES
 // ============================================================
-
-// 1. Installation starten
 app.get('/auth', (req, res) => {
   const { shop } = req.query;
   if (!shop) return res.status(400).send('Shop parameter fehlt');
@@ -385,7 +435,6 @@ app.get('/auth', (req, res) => {
   res.redirect(installUrl);
 });
 
-// 2. OAuth Callback
 app.get('/auth/callback', async (req, res) => {
   const { shop, code, hmac, state, host, timestamp } = req.query;
 
@@ -419,8 +468,8 @@ app.get('/auth/callback', async (req, res) => {
     });
     const shopData = (await shopRes.json()).shop || {};
 
-    await saveShop(shop, tokenData.access_token, shopData);
-    console.log(`✅ Shop installiert: ${shop} | Sprache: ${shopData.primary_locale}`);
+    const savedInTable = await saveShop(shop, tokenData.access_token, shopData);
+    console.log(`✅ Shop installiert: ${shop} | Sprache: ${shopData.primary_locale} | gespeichert in: ${savedInTable}`);
 
     await syncProducts(shop, tokenData.access_token);
     await registerWebhooks(shop, tokenData.access_token);
@@ -436,7 +485,6 @@ app.get('/auth/callback', async (req, res) => {
 // ============================================================
 // WEBHOOKS
 // ============================================================
-
 async function registerWebhooks(shop, accessToken) {
   const webhooks = [
     { topic: 'app/uninstalled',        address: `${APP_URL}/webhooks/app/uninstalled` },
@@ -473,9 +521,31 @@ app.post('/webhooks/app/uninstalled', async (req, res) => {
     return res.status(401).send('Unauthorized');
   }
 
-  await supabase.from('shops')
-    .update({ is_active: false, uninstalled_at: new Date().toISOString() })
-    .eq('shop_domain', shop);
+  try {
+    const { error } = await supabase
+      .from('efro_shops')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('shop_domain', shop);
+
+    if (error && !isMissingTableError(error)) {
+      console.warn('⚠️ efro_shops update Fehler bei uninstall:', error.message);
+    }
+  } catch (err) {
+    console.warn('⚠️ uninstall fallback warning:', err?.message || err);
+  }
+
+  try {
+    const { error } = await supabase
+      .from('shops')
+      .update({ is_active: false, uninstalled_at: new Date().toISOString() })
+      .eq('shop_domain', shop);
+
+    if (error && !isMissingTableError(error)) {
+      console.warn('⚠️ shops update Fehler bei uninstall:', error.message);
+    }
+  } catch (err) {
+    console.warn('⚠️ uninstall shops warning:', err?.message || err);
+  }
 
   console.log(`🗑️ App deinstalliert: ${shop}`);
   res.status(200).send('OK');
@@ -532,7 +602,6 @@ app.post('/webhooks/shop/redact', (req, res) => {
 // ============================================================
 // START
 // ============================================================
-
 setInterval(() => {
   https.get("https://app.avatarsalespro.com/health", (res) => {
     console.log(`🏓 Self-ping: ${res.statusCode}`);
