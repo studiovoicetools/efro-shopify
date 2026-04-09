@@ -84,7 +84,7 @@ export async function handleOrdersCreateWebhook(body, shopDomain) {
     
     // Optional: Brain-API über neuen Verkauf informieren
     try {
-      const brainApiBase = process.env.BRAIN_API_URL || "https://efro-five.vercel.app";
+      const brainApiBase = process.env.BRAIN_API_URL || "https://efro-brain.vercel.app";
       const brainApiResponse = await fetch(`${brainApiBase}/api/analytics/sale`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

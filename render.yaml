@@ -20,7 +20,7 @@ services:
       - key: SHOPIFY_APP_SCOPES
         value: read_products,write_products,read_orders,write_orders,read_customers,write_customers
       - key: BRAIN_API_URL
-        value: https://efro-five.vercel.app
+        value: https://efro-brain.vercel.app
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY
