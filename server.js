@@ -177,8 +177,106 @@ function validateWebhookHmac(rawBody, receivedHmac) {
   }
 }
 
+function parseWebhookPayload(rawBody) {
+  try {
+    const raw = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : String(rawBody || '{}');
+    return JSON.parse(raw || '{}');
+  } catch {
+    return {};
+  }
+}
+
+async function insertPrivacyEvent(topic, shop, payload) {
+  try {
+    const { error } = await supabase
+      .from('privacy_events')
+      .insert({
+        topic,
+        shop_domain: shop,
+        payload,
+        received_at: new Date().toISOString()
+      });
+
+    if (error && !isMissingTableError(error)) {
+      console.warn(`⚠️ privacy_events insert warning (${topic}):`, error.message);
+    }
+  } catch (err) {
+    console.warn(`⚠️ privacy event warning (${topic}):`, err?.message || err);
+  }
+}
+
+async function redactCustomerData(shop, payload) {
+  const customer = payload?.customer || {};
+  const email = customer?.email || payload?.email || null;
+
+  if (!email) return;
+
+  try {
+    const { error } = await supabase
+      .from('efro_orders')
+      .delete()
+      .eq('shop_domain', shop)
+      .eq('customer_email', email);
+
+    if (error && !isMissingTableError(error)) {
+      console.warn('⚠️ customer redact warning:', error.message);
+    }
+  } catch (err) {
+    console.warn('⚠️ customer redact warning:', err?.message || err);
+  }
+}
+
+async function redactShopData(shop) {
+  const nowIso = new Date().toISOString();
+
+  for (const table of ['shops', 'efro_shops']) {
+    try {
+      const { error } = await supabase
+        .from(table)
+        .update({
+          access_token: null,
+          is_active: false,
+          uninstalled_at: nowIso,
+          updated_at: nowIso
+        })
+        .eq('shop_domain', shop);
+
+      if (error && !isMissingTableError(error)) {
+        console.warn(`⚠️ shop redact warning (${table}):`, error.message);
+      }
+    } catch (err) {
+      console.warn(`⚠️ shop redact warning (${table}):`, err?.message || err);
+    }
+  }
+
+  try {
+    const { error } = await supabase
+      .from('efro_orders')
+      .delete()
+      .eq('shop_domain', shop);
+
+    if (error && !isMissingTableError(error)) {
+      console.warn('⚠️ shop orders redact warning:', error.message);
+    }
+  } catch (err) {
+    console.warn('⚠️ shop orders redact warning:', err?.message || err);
+  }
+}
+
+async function processGdprWebhook(topic, shop, payload) {
+  await insertPrivacyEvent(topic, shop, payload);
+
+  if (topic === 'customers/redact') {
+    await redactCustomerData(shop, payload);
+  }
+
+  if (topic === 'shop/redact') {
+    await redactShopData(shop);
+  }
+}
+
 function handleGdprWebhook(topic) {
-  return (req, res) => {
+  return async (req, res) => {
     const hmac = req.get('X-Shopify-Hmac-Sha256');
     const shop = req.get('X-Shopify-Shop-Domain') || 'unknown-shop';
 
@@ -186,6 +284,9 @@ function handleGdprWebhook(topic) {
       console.warn(`❌ GDPR Webhook HMAC invalid: ${topic} | ${shop}`);
       return res.status(401).send('Unauthorized');
     }
+
+    const payload = parseWebhookPayload(req.body);
+    await processGdprWebhook(topic, shop, payload);
 
     console.log(`📋 GDPR Webhook OK: ${topic} | ${shop}`);
     return res.status(200).send('OK');
@@ -195,7 +296,7 @@ function handleGdprWebhook(topic) {
 async function syncProducts(shopDomain, accessToken) {
   console.log(`🔄 Starte Produkt-Sync für ${shopDomain}`);
   let allProducts = [];
-  let url = `https://${shopDomain}/admin/api/2024-10/products.json?limit=250`;
+  let url = `https://${shopDomain}/admin/api/2026-01/products.json?limit=250`;
 
   while (url) {
     const res = await fetch(url, {
@@ -484,7 +585,7 @@ app.get('/auth/callback', async (req, res) => {
       throw new Error('Kein Access Token erhalten');
     }
 
-    const shopRes = await fetch(`https://${shop}/admin/api/2024-10/shop.json`, {
+    const shopRes = await fetch(`https://${shop}/admin/api/2026-01/shop.json`, {
       headers: { 'X-Shopify-Access-Token': tokenData.access_token }
     });
     const shopData = (await shopRes.json()).shop || {};
@@ -493,7 +594,7 @@ app.get('/auth/callback', async (req, res) => {
     console.log(`✅ Shop installiert: ${shop} | Sprache: ${shopData.primary_locale} | gespeichert in: ${savedInTable}`);
 
     await syncProducts(shop, tokenData.access_token);
-    await registerWebhooks(shop, tokenData.access_token);
+    await registerOperationalWebhooks(shop, tokenData.access_token);
 
     const rootUrl = `/?shop=${encodeURIComponent(String(shop))}${host ? `&host=${encodeURIComponent(String(host))}` : ''}`;
     return res.redirect(rootUrl);
@@ -506,20 +607,17 @@ app.get('/auth/callback', async (req, res) => {
 // ============================================================
 // WEBHOOKS
 // ============================================================
-async function registerWebhooks(shop, accessToken) {
+async function registerOperationalWebhooks(shop, accessToken) {
   const webhooks = [
-    { topic: 'app/uninstalled',        address: `${APP_URL}/webhooks/app/uninstalled` },
-    { topic: 'products/create',        address: `${APP_URL}/webhooks/products/create` },
-    { topic: 'products/update',        address: `${APP_URL}/webhooks/products/update` },
-    { topic: 'products/delete',        address: `${APP_URL}/webhooks/products/delete` },
-    { topic: 'customers/data_request', address: `${APP_URL}/webhooks/customers/data_request` },
-    { topic: 'customers/redact',       address: `${APP_URL}/webhooks/customers/redact` },
-    { topic: 'shop/redact',            address: `${APP_URL}/webhooks/shop/redact` }
+    { topic: 'app/uninstalled', address: `${APP_URL}/webhooks/app/uninstalled` },
+    { topic: 'products/create', address: `${APP_URL}/webhooks/products/create` },
+    { topic: 'products/update', address: `${APP_URL}/webhooks/products/update` },
+    { topic: 'products/delete', address: `${APP_URL}/webhooks/products/delete` }
   ];
 
   for (const wh of webhooks) {
     try {
-      await fetch(`https://${shop}/admin/api/2024-10/webhooks.json`, {
+      await fetch(`https://${shop}/admin/api/2026-01/webhooks.json`, {
         method: 'POST',
         headers: {
           'X-Shopify-Access-Token': accessToken,
@@ -527,9 +625,9 @@ async function registerWebhooks(shop, accessToken) {
         },
         body: JSON.stringify({ webhook: { topic: wh.topic, address: wh.address, format: 'json' } })
       });
-      console.log(`   📌 Webhook registriert: ${wh.topic}`);
+      console.log(`   📌 Operational webhook registered: ${wh.topic}`);
     } catch (e) {
-      console.warn(`   ⚠️ Webhook Fehler (${wh.topic}):`, e.message);
+      console.warn(`   ⚠️ Operational webhook error (${wh.topic}):`, e.message);
     }
   }
 }
