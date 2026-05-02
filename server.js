@@ -41,7 +41,7 @@ const supabase = createClient(
 // ============================================================
 // MIDDLEWARE
 // ============================================================
-app.use('/webhooks', express.raw({ type: 'application/json' }));
+app.use(['/webhooks', '/api/gdpr'], express.raw({ type: 'application/json' }));
 app.use(express.json());
 
 // ============================================================
@@ -163,12 +163,33 @@ function validateHmac(params, receivedHmac) {
 }
 
 function validateWebhookHmac(rawBody, receivedHmac) {
-  if (!receivedHmac) return false;
+  if (!SHOPIFY_API_SECRET || !receivedHmac) return false;
+  const raw = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody || ''), 'utf8');
   const calculated = crypto
     .createHmac('sha256', SHOPIFY_API_SECRET)
-    .update(rawBody)
+    .update(raw)
     .digest('base64');
-  return calculated === receivedHmac;
+
+  try {
+    return crypto.timingSafeEqual(Buffer.from(calculated), Buffer.from(receivedHmac));
+  } catch {
+    return false;
+  }
+}
+
+function handleGdprWebhook(topic) {
+  return (req, res) => {
+    const hmac = req.get('X-Shopify-Hmac-Sha256');
+    const shop = req.get('X-Shopify-Shop-Domain') || 'unknown-shop';
+
+    if (!validateWebhookHmac(req.body, hmac)) {
+      console.warn(`❌ GDPR Webhook HMAC invalid: ${topic} | ${shop}`);
+      return res.status(401).send('Unauthorized');
+    }
+
+    console.log(`📋 GDPR Webhook OK: ${topic} | ${shop}`);
+    return res.status(200).send('OK');
+  };
 }
 
 async function syncProducts(shopDomain, accessToken) {
@@ -584,20 +605,13 @@ app.post('/webhooks/products/delete', async (req, res) => {
   res.status(200).send('OK');
 });
 
-app.post('/webhooks/customers/data_request', (req, res) => {
-  console.log('📋 GDPR: customers/data_request');
-  res.status(200).send('OK');
-});
+app.post('/webhooks/customers/data_request', handleGdprWebhook('customers/data_request'));
+app.post('/webhooks/customers/redact', handleGdprWebhook('customers/redact'));
+app.post('/webhooks/shop/redact', handleGdprWebhook('shop/redact'));
 
-app.post('/webhooks/customers/redact', (req, res) => {
-  console.log('📋 GDPR: customers/redact');
-  res.status(200).send('OK');
-});
-
-app.post('/webhooks/shop/redact', (req, res) => {
-  console.log('📋 GDPR: shop/redact');
-  res.status(200).send('OK');
-});
+app.post('/api/gdpr/customers-data-request', handleGdprWebhook('customers/data_request'));
+app.post('/api/gdpr/customers-redact', handleGdprWebhook('customers/redact'));
+app.post('/api/gdpr/shop-redact', handleGdprWebhook('shop/redact'));
 
 // ============================================================
 // START
