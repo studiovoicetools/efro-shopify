@@ -77,8 +77,9 @@ Auto-deploys from the `main` branch via `render.yaml`.
 SHOPIFY_API_KEY=
 SHOPIFY_API_SECRET=
 SHOPIFY_APP_URL=https://app.avatarsalespro.com
-SHOPIFY_APP_SCOPES=read_products,write_products,read_orders,write_orders,read_customers,write_customers
+SHOPIFY_APP_SCOPES=read_products,read_product_listings,read_customers,read_orders
 BRAIN_API_URL=https://efro-five.vercel.app
+BRAIN_API_KEY=
 SUPABASE_URL=
 SUPABASE_SERVICE_KEY=
 PORT=8081

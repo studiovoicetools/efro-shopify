@@ -745,6 +745,34 @@ app.get('/privacy', (req, res) => {
 </html>`);
 });
 
+app.get('/support', (req, res) => {
+  res.type('html').send(`<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Support – EFRO KI Verkaufsassistent</title>
+</head>
+<body style="font-family: system-ui, -apple-system, Segoe UI, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 20px; line-height: 1.55;">
+  <h1>Support – EFRO KI Verkaufsassistent</h1>
+  <p>Wir unterstützen Händler bei Installation, Konfiguration, Datenschutzanfragen und technischen Problemen mit der Shopify-App.</p>
+
+  <h2>Kontakt</h2>
+  <p>E-Mail: <a href="mailto:support@avatarsalespro.com">support@avatarsalespro.com</a></p>
+
+  <h2>Bitte angeben</h2>
+  <ul>
+    <li>Shop-Domain</li>
+    <li>Beschreibung des Problems oder der Frage</li>
+    <li>Relevante Screenshots oder Fehlermeldungen, falls vorhanden</li>
+  </ul>
+
+  <h2>Datenschutz</h2>
+  <p>Datenschutzanfragen können ebenfalls über diese Support-Adresse gestellt werden. Weitere Informationen stehen in der <a href="/privacy">Datenschutzerklärung</a>.</p>
+</body>
+</html>`);
+});
+
 
 // ============================================================
 // START

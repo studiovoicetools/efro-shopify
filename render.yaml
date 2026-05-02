@@ -21,6 +21,8 @@ services:
         value: read_products,read_product_listings,read_customers,read_orders
       - key: BRAIN_API_URL
         value: https://efro-five.vercel.app
+      - key: BRAIN_API_KEY
+        sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY
