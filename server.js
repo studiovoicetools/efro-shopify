@@ -728,7 +728,7 @@ app.get('/privacy', (req, res) => {
   <p>Die App kann Shop-Domain, Shop-Metadaten, Produktdaten, Installationsstatus und technische Ereignisse verarbeiten. Sofern für Funktionen erforderlich, können auch Bestell- oder Kundendaten verarbeitet werden.</p>
 
   <h2>Zweck der Verarbeitung</h2>
-  <p>Die Daten werden genutzt, um Produkte zu synchronisieren, den Verkaufsassistenten bereitzustellen, App-Funktionen zu betreiben, Fehler zu erkennen und Händleranfragen zu unterstützen.</p>
+  <p>Die Daten werden genutzt, um Produkte zu synchronisieren, KI-gestützte Produktempfehlungen und Chat-Antworten für Händler bereitzustellen, App-Funktionen zu betreiben, Fehler zu erkennen und Händleranfragen zu unterstützen.</p>
 
   <h2>Externe Dienste</h2>
   <p>Die App nutzt EFRO-Dienste zur Verarbeitung von Produkt- und Chat-Funktionen. Daten werden nur zur Bereitstellung der App-Funktionalität verarbeitet.</p>
@@ -740,7 +740,7 @@ app.get('/privacy', (req, res) => {
   <p>Personenbezogene Daten werden nur so lange gespeichert, wie sie für die App-Funktion, Sicherheit, Fehleranalyse oder rechtliche Pflichten erforderlich sind. Bei gültigen Löschanfragen werden betroffene Daten best-effort gelöscht oder anonymisiert.</p>
 
   <h2>Kontakt</h2>
-  <p>Datenschutzanfragen können an den Betreiber der App gerichtet werden.</p>
+  <p>Datenschutzanfragen können per E-Mail an <a href="mailto:support@avatarsalespro.com">support@avatarsalespro.com</a> gestellt werden.</p>
 </body>
 </html>`);
 });
