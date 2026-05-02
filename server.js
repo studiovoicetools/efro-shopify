@@ -711,6 +711,41 @@ app.post('/api/gdpr/customers-data-request', handleGdprWebhook('customers/data_r
 app.post('/api/gdpr/customers-redact', handleGdprWebhook('customers/redact'));
 app.post('/api/gdpr/shop-redact', handleGdprWebhook('shop/redact'));
 
+
+app.get('/privacy', (req, res) => {
+  res.type('html').send(`<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Datenschutzerklärung – EFRO KI Verkaufsassistent</title>
+</head>
+<body style="font-family: system-ui, -apple-system, Segoe UI, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 20px; line-height: 1.55;">
+  <h1>Datenschutzerklärung – EFRO KI Verkaufsassistent</h1>
+  <p>EFRO KI Verkaufsassistent verarbeitet Shop- und Produktdaten, um Händlern einen KI-gestützten Verkaufsassistenten bereitzustellen.</p>
+
+  <h2>Verarbeitete Daten</h2>
+  <p>Die App kann Shop-Domain, Shop-Metadaten, Produktdaten, Installationsstatus und technische Ereignisse verarbeiten. Sofern für Funktionen erforderlich, können auch Bestell- oder Kundendaten verarbeitet werden.</p>
+
+  <h2>Zweck der Verarbeitung</h2>
+  <p>Die Daten werden genutzt, um Produkte zu synchronisieren, den Verkaufsassistenten bereitzustellen, App-Funktionen zu betreiben, Fehler zu erkennen und Händleranfragen zu unterstützen.</p>
+
+  <h2>Externe Dienste</h2>
+  <p>Die App nutzt EFRO-Dienste zur Verarbeitung von Produkt- und Chat-Funktionen. Daten werden nur zur Bereitstellung der App-Funktionalität verarbeitet.</p>
+
+  <h2>Datenschutz-Webhooks</h2>
+  <p>Die App verarbeitet Shopify-Privacy-Compliance-Webhooks für Kundendatenanfragen, Kundenlöschung und Shoplöschung. Gültige Shopify-Webhooks werden per HMAC geprüft.</p>
+
+  <h2>Aufbewahrung und Löschung</h2>
+  <p>Personenbezogene Daten werden nur so lange gespeichert, wie sie für die App-Funktion, Sicherheit, Fehleranalyse oder rechtliche Pflichten erforderlich sind. Bei gültigen Löschanfragen werden betroffene Daten best-effort gelöscht oder anonymisiert.</p>
+
+  <h2>Kontakt</h2>
+  <p>Datenschutzanfragen können an den Betreiber der App gerichtet werden.</p>
+</body>
+</html>`);
+});
+
+
 // ============================================================
 // START
 // ============================================================
