@@ -29,6 +29,8 @@ const APP_URL            = process.env.SHOPIFY_APP_URL;
 const REDIRECT_URI       = `${APP_URL}/auth/callback`;
 const BRAIN_API_URL      = process.env.BRAIN_API_URL || 'https://efro-brain.vercel.app';
 const WIDGET_URL         = process.env.WIDGET_URL || 'https://widget.avatarsalespro.com';
+const SHOPIFY_PRODUCT_SYNC_MAX_PAGES = Number(process.env.SHOPIFY_PRODUCT_SYNC_MAX_PAGES || 4000);
+const SHOPIFY_PRODUCT_SYNC_MAX_RETRIES = Number(process.env.SHOPIFY_PRODUCT_SYNC_MAX_RETRIES || 3);
 
 // ============================================================
 // SUPABASE
@@ -293,15 +295,38 @@ function handleGdprWebhook(topic) {
   };
 }
 
+async function fetchShopifyProductsPage(url, accessToken, attempt = 1) {
+  const res = await fetch(url, {
+    headers: { 'X-Shopify-Access-Token': accessToken }
+  });
+
+  if (res.status === 429 && attempt < SHOPIFY_PRODUCT_SYNC_MAX_RETRIES) {
+    const retryAfter = Number(res.headers.get('Retry-After') || 1);
+    await new Promise(resolve => setTimeout(resolve, Math.min(retryAfter, 5) * 1000));
+    return fetchShopifyProductsPage(url, accessToken, attempt + 1);
+  }
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Shopify products page failed ${res.status}: ${detail.slice(0, 300)}`);
+  }
+
+  return res;
+}
+
 async function syncProducts(shopDomain, accessToken) {
   console.log(`🔄 Starte Produkt-Sync für ${shopDomain}`);
   let allProducts = [];
   let url = `https://${shopDomain}/admin/api/2026-01/products.json?limit=250`;
+  let pageCount = 0;
 
   while (url) {
-    const res = await fetch(url, {
-      headers: { 'X-Shopify-Access-Token': accessToken }
-    });
+    pageCount += 1;
+    if (pageCount > SHOPIFY_PRODUCT_SYNC_MAX_PAGES) {
+      throw new Error(`Shopify product sync exceeded max pages (${SHOPIFY_PRODUCT_SYNC_MAX_PAGES}) for ${shopDomain}`);
+    }
+
+    const res = await fetchShopifyProductsPage(url, accessToken);
     const data = await res.json();
     allProducts = allProducts.concat(data.products || []);
 
@@ -310,17 +335,22 @@ async function syncProducts(shopDomain, accessToken) {
     url = nextMatch ? nextMatch[1] : null;
   }
 
-  console.log(`   📦 ${allProducts.length} Produkte gefunden`);
+  console.log(`   📦 ${allProducts.length} Produkte gefunden auf ${pageCount} Seiten`);
 
   const syncRes = await fetch(`${BRAIN_API_URL}/api/shopify/sync`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ shop_domain: shopDomain, products: allProducts })
+    body: JSON.stringify({ shop_domain: shopDomain, products: allProducts, source: 'efro-shopify', page_count: pageCount })
   });
 
+  if (!syncRes.ok) {
+    const detail = await syncRes.text().catch(() => '');
+    throw new Error(`Brain Shopify sync failed ${syncRes.status}: ${detail.slice(0, 300)}`);
+  }
+
   const syncData = await syncRes.json();
-  console.log(`   ✅ Sync abgeschlossen:`, syncData);
-  return syncData;
+  console.log(`   ✅ Sync abgeschlossen:`, { ...syncData, page_count: pageCount, product_count: allProducts.length });
+  return { ...syncData, page_count: pageCount, product_count: allProducts.length };
 }
 
 function verifySessionToken(token) {
