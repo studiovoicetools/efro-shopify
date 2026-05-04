@@ -10,6 +10,7 @@ import express from 'express';
 import crypto from 'crypto';
 import https from 'https';
 import fetch from 'node-fetch';
+import ws from 'ws';
 import { createClient } from '@supabase/supabase-js';
 
 const app = express();
@@ -37,7 +38,12 @@ const SHOPIFY_PRODUCT_SYNC_MAX_RETRIES = Number(process.env.SHOPIFY_PRODUCT_SYNC
 // ============================================================
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
+  {
+    realtime: {
+      transport: ws
+    }
+  }
 );
 
 // ============================================================
