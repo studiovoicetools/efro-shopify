@@ -30,6 +30,7 @@ const APP_URL            = process.env.SHOPIFY_APP_URL;
 const REDIRECT_URI       = `${APP_URL}/auth/callback`;
 const BRAIN_API_URL      = process.env.BRAIN_API_URL || 'https://efro-brain.vercel.app';
 const WIDGET_URL         = process.env.WIDGET_URL || 'https://widget.avatarsalespro.com';
+const SHOPIFY_APP_HANDLE = process.env.SHOPIFY_APP_HANDLE || 'efro-ki-verkaufsassistent';
 const SHOPIFY_PRODUCT_SYNC_MAX_PAGES = Number(process.env.SHOPIFY_PRODUCT_SYNC_MAX_PAGES || 4000);
 const SHOPIFY_PRODUCT_SYNC_MAX_RETRIES = Number(process.env.SHOPIFY_PRODUCT_SYNC_MAX_RETRIES || 3);
 
@@ -96,6 +97,116 @@ async function getShopRecord(shopDomain) {
 async function getShopToken(shopDomain) {
   const record = await getShopRecord(shopDomain);
   return record?.data?.access_token || null;
+}
+
+function shopDomainToStoreHandle(shopDomain) {
+  return String(shopDomain || '').trim().replace(/\.myshopify\.com$/i, '');
+}
+
+function buildManagedPricingPageUrl(shopDomain, appHandle = SHOPIFY_APP_HANDLE) {
+  const storeHandle = shopDomainToStoreHandle(shopDomain);
+  const safeAppHandle = String(appHandle || '').trim();
+  if (!storeHandle || !safeAppHandle) return null;
+  return `https://admin.shopify.com/store/${encodeURIComponent(storeHandle)}/charges/${encodeURIComponent(safeAppHandle)}/pricing_plans`;
+}
+
+function normalizeManagedPricingStatus(status) {
+  const value = String(status || '').trim().toLowerCase();
+  if (value === 'active') return 'active';
+  if (value === 'trialing' || value === 'trial') return 'trialing';
+  if (value === 'pending' || value === 'accepted' || value === 'frozen') return 'pending';
+  if (value === 'canceled' || value === 'cancelled' || value === 'declined' || value === 'expired') return 'canceled';
+  return 'unknown';
+}
+
+function mapManagedPricingPlanName(planName) {
+  const value = String(planName || '').trim().toLowerCase();
+  if (!value) return 'unknown';
+  if (value.includes('starter')) return 'starter';
+  if (value.includes('growth')) return 'growth';
+  if (value.includes('premium')) return 'premium';
+  if (value.includes('enterprise') || value.includes('private') || value.includes('managed') || value.includes('custom')) return 'enterprise';
+  return 'unknown';
+}
+
+function unknownManagedPricingStatus(shopDomain) {
+  return {
+    shopDomain: String(shopDomain || '').trim(),
+    billingProvider: 'shopify_managed_pricing',
+    billingStatus: 'unknown',
+    efroPlanKey: 'unknown',
+    shopifySubscriptionId: null,
+    currentPeriodEnd: null,
+    test: null,
+    lastCheckedAt: new Date().toISOString(),
+    pricingPageUrl: buildManagedPricingPageUrl(shopDomain),
+    notes: [
+      'Read-only Managed Pricing status only.',
+      'No appSubscriptionCreate, no charge creation, no hard OAuth billing redirect.',
+      'TODO: map stable Shopify plan handles/IDs; localized plan names are not enough.'
+    ]
+  };
+}
+
+async function getManagedPricingStatus(shopDomain, accessToken) {
+  const shop = String(shopDomain || '').trim();
+  const token = String(accessToken || '').trim();
+  if (!shop || !token) return unknownManagedPricingStatus(shop);
+
+  const query = `#graphql
+    query EfroReadOnlyManagedPricingStatus {
+      currentAppInstallation {
+        activeSubscriptions {
+          id
+          name
+          status
+          test
+          trialDays
+          currentPeriodEnd
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch(`https://${shop}/admin/api/2026-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': token
+      },
+      body: JSON.stringify({ query })
+    });
+
+    if (!response.ok) return unknownManagedPricingStatus(shop);
+
+    const payload = await response.json();
+    const subscriptions = payload?.data?.currentAppInstallation?.activeSubscriptions || [];
+    const subscription = subscriptions.find(item => normalizeManagedPricingStatus(item?.status) === 'active')
+      || subscriptions.find(item => normalizeManagedPricingStatus(item?.status) === 'trialing')
+      || subscriptions[0];
+
+    if (!subscription) return unknownManagedPricingStatus(shop);
+
+    return {
+      shopDomain: shop,
+      billingProvider: 'shopify_managed_pricing',
+      billingStatus: normalizeManagedPricingStatus(subscription.status),
+      efroPlanKey: mapManagedPricingPlanName(subscription.name),
+      shopifySubscriptionId: subscription.id || null,
+      currentPeriodEnd: subscription.currentPeriodEnd || null,
+      test: typeof subscription.test === 'boolean' ? subscription.test : null,
+      lastCheckedAt: new Date().toISOString(),
+      pricingPageUrl: buildManagedPricingPageUrl(shop),
+      notes: [
+        'Read-only Managed Pricing status only.',
+        'No appSubscriptionCreate, no charge creation, no hard OAuth billing redirect.',
+        'TODO: map stable Shopify plan handles/IDs; localized plan names are not enough.'
+      ]
+    };
+  } catch (err) {
+    return unknownManagedPricingStatus(shop);
+  }
 }
 
 async function saveShop(shopDomain, accessToken, shopData) {
@@ -395,6 +506,10 @@ function verifySessionToken(token) {
 
 function embeddedAppPage(shop, host = '') {
   const widgetSrc = `${WIDGET_URL}/?shop=${encodeURIComponent(shop)}`;
+  const pricingPageUrl = buildManagedPricingPageUrl(shop);
+  const billingCtaHtml = pricingPageUrl
+    ? '<a href="' + pricingPageUrl + '" target="_top" rel="noopener">Plan in Shopify verwalten</a>'
+    : '<span>Plan-Link TODO: App Handle konfigurieren</span>';
 
   return `<!DOCTYPE html>
 <html lang="de">
@@ -442,6 +557,23 @@ function embeddedAppPage(shop, host = '') {
       border-radius: 999px;
       white-space: nowrap;
     }
+    .billing-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 16px;
+      background: #fff7ed;
+      border-bottom: 1px solid #fed7aa;
+      font-size: 12px;
+    }
+    .billing-card strong { font-size: 13px; }
+    .billing-card a, .billing-card span {
+      color: #9a3412;
+      font-weight: 700;
+      text-decoration: none;
+      white-space: nowrap;
+    }
     iframe {
       width: 100%;
       height: calc(100% - 58px);
@@ -458,6 +590,13 @@ function embeddedAppPage(shop, host = '') {
         <div class="meta">Shop: ${shop}</div>
       </div>
       <div class="status" id="session-status">Prüfe App Bridge / Session Token …</div>
+    </div>
+    <div class="billing-card">
+      <div>
+        <strong>Shopify Billing: Managed Pricing</strong><br />
+        Status: <span id="billing-status">unknown</span> · EFRO Plan: <span id="billing-plan">unknown</span>
+      </div>
+      ${billingCtaHtml}
     </div>
     <iframe
       id="efro-widget"
@@ -494,6 +633,18 @@ function embeddedAppPage(shop, host = '') {
         }
 
         const data = await res.json();
+
+        fetch('/api/billing/managed-pricing/status?shop=' + encodeURIComponent('${shop}'))
+          .then(billingRes => billingRes.ok ? billingRes.json() : null)
+          .then(billingData => {
+            if (!billingData) return;
+            const billingStatusEl = document.getElementById('billing-status');
+            const billingPlanEl = document.getElementById('billing-plan');
+            if (billingStatusEl) billingStatusEl.textContent = billingData.billingStatus || 'unknown';
+            if (billingPlanEl) billingPlanEl.textContent = billingData.efroPlanKey || 'unknown';
+          })
+          .catch(() => {});
+
         statusEl.textContent = 'Embedded OK – Session Token validiert';
         statusEl.style.color = '#166534';
         statusEl.style.background = '#dcfce7';
@@ -547,6 +698,18 @@ app.get('/', async (req, res) => {
   } catch (err) {
     console.error('❌ Root Route Fehler:', err?.message || err);
     return res.status(500).send('Fehler beim Laden der eingebetteten App');
+  }
+});
+
+app.get('/api/billing/managed-pricing/status', async (req, res) => {
+  const shop = String(req.query.shop || '').trim();
+
+  try {
+    const accessToken = await getShopToken(shop).catch(() => null);
+    const billingStatus = await getManagedPricingStatus(shop, accessToken);
+    return res.status(200).json(billingStatus);
+  } catch (err) {
+    return res.status(200).json(unknownManagedPricingStatus(shop));
   }
 });
 
