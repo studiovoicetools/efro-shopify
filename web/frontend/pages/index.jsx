@@ -40,6 +40,11 @@ export default function HomePage() {
   }, []);
 
   const isHealthy = health?.status === "healthy";
+  const productsFound = Number(health?.products_found ?? 0);
+  const hasProducts = productsFound > 0;
+  const reviewFallbackAnswer = hasProducts
+    ? "EFRO ist verbunden. Öffne den Storefront-Widget-Test und frage nach einem passenden Produkt aus deinem Shop-Katalog."
+    : "EFRO ist installiert, aber für diesen Review-Shop wurden noch keine Produkte synchronisiert. Füge ein Produkt hinzu oder synchronisiere den Katalog, dann kann EFRO konkrete Empfehlungen testen.";
 
   return (
     <Page title="EFRO Dashboard">
@@ -104,6 +109,28 @@ export default function HomePage() {
                 )}
               </TextContainer>
             )}
+          </Card>
+        </Layout.Section>
+
+        <Layout.Section>
+          <Card title="Testpfad" sectioned>
+            <TextContainer spacing="loose">
+              <Text as="p" variant="bodyMd">
+                EFRO kann im Theme Editor als App Block hinzugefügt und anschließend im Storefront getestet werden.
+              </Text>
+              <Text as="p" variant="bodyMd">
+                Produktstatus:{" "}
+                <Badge status={hasProducts ? "success" : "warning"}>
+                  {hasProducts ? `${productsFound} Produkte bereit` : "Produkt-Sync erforderlich"}
+                </Badge>
+              </Text>
+              <Text as="p" variant="bodyMd">
+                Testfrage: <strong>Welches Produkt empfiehlst du mir?</strong>
+              </Text>
+              <Text as="p" variant="bodyMd">
+                Antwortstatus: {reviewFallbackAnswer}
+              </Text>
+            </TextContainer>
           </Card>
         </Layout.Section>
 
