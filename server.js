@@ -667,6 +667,10 @@ function embeddedAppPage(shop, host = '') {
 // ============================================================
 // HEALTH CHECK
 // ============================================================
+app.get('/healthz', (req, res) => {
+  res.status(200).type('text/plain').send('ok');
+});
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
