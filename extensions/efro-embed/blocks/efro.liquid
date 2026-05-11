@@ -1,9 +1,30 @@
-<div id="efro-avatar-root"></div>
+<div
+  id="efro-avatar-root"
+  class="efro-sales-assistant-block"
+  data-efro-shop="{{ shop.permanent_domain }}"
+  data-efro-source="theme-app-block"
+>
+  <div style="padding: 16px; border: 1px solid #d9d9d9; border-radius: 12px; background: #ffffff; color: #111827; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+    <strong>EFRO Sales Assistant</strong>
+    <p style="margin: 8px 0 0;">
+      EFRO is installed. Save this theme section and open the storefront to test the assistant widget.
+    </p>
+  </div>
+</div>
+
+<script src="{{ 'efro.js' | asset_url }}" defer></script>
 
 {% schema %}
 {
-  "name": "EFRO Avatar Block",
+  "name": "EFRO Sales Assistant",
   "target": "section",
-  "settings": []
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "show_editor_hint",
+      "label": "Show setup hint in editor",
+      "default": true
+    }
+  ]
 }
 {% endschema %}

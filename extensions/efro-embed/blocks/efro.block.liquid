@@ -1,8 +1,22 @@
-<div id="efro-avatar-block"></div>
+<div
+  id="efro-avatar-block"
+  class="efro-sales-assistant-block"
+  data-efro-shop="{{ shop.permanent_domain }}"
+  data-efro-source="theme-app-block-simple"
+>
+  <div style="padding: 16px; border: 1px solid #d9d9d9; border-radius: 12px; background: #ffffff; color: #111827; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+    <strong>EFRO Sales Assistant</strong>
+    <p style="margin: 8px 0 0;">
+      EFRO block is available. Save the theme and open the storefront to test the widget.
+    </p>
+  </div>
+</div>
+
+<script src="{{ 'efro.js' | asset_url }}" defer></script>
 
 {% schema %}
 {
-  "name": "EFRO Avatar Simple Block",
+  "name": "EFRO Sales Assistant Simple",
   "target": "section",
   "settings": []
 }
