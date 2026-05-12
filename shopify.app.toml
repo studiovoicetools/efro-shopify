@@ -6,9 +6,6 @@ client_id = "ae75c7d683dc9e2de855d104206ae8cc"
 application_url = "https://app.avatarsalespro.com"
 embedded = true
 
-homepage_url = "https://avatarsalespro.com"
-support_url = "https://app.avatarsalespro.com/support"
-privacy_policy_url = "https://app.avatarsalespro.com/privacy"
 
 [build]
 automatically_update_urls_on_dev = true
