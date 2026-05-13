@@ -1,5 +1,5 @@
 (function () {
-  const WIDGET_URL = 'https://app.avatarsalespro.com/widget/';
+  const WIDGET_URL = 'https://widget.avatarsalespro.com/';
   const existing = document.getElementById('efro-avatar-iframe');
 
   if (existing) {
